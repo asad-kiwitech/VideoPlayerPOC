@@ -15,6 +15,7 @@ import {
 import padStart from 'lodash/padStart';
 import {IMAGES} from '../../constants';
 import {styles} from './styles';
+import Subtitles from '../Subtitle';
 
 export default class VideoPlayer extends Component {
   static defaultProps = {
@@ -34,6 +35,11 @@ export default class VideoPlayer extends Component {
     rate: 1,
     custom: false,
     reloadEnable: false,
+    currentTime: val => {},
+    subtitleTextStyle: {},
+    subtitleStyle: {},
+    subtitleEnable: false,
+    subtitleEnableFile: null,
   };
   constructor(props) {
     super(props);
@@ -164,10 +170,14 @@ export default class VideoPlayer extends Component {
       this.props.onLoad(...arguments);
     }
   }
+
   _onProgress(data = {}) {
     let state = this.state;
     if (!state.scrubbing) {
       state.currentTime = data.currentTime;
+      if (typeof this.props.currentTime === 'function') {
+        this.props.currentTime?.(state.currentTime);
+      }
       if (!state.seeking) {
         const position = this.calculateSeekerPosition();
         this.setSeekerPosition(position);
@@ -183,6 +193,9 @@ export default class VideoPlayer extends Component {
     if (state.scrubbing) {
       state.scrubbing = false;
       state.currentTime = data.currentTime;
+      if (typeof this.props.currentTime === 'function') {
+        this.props.currentTime?.(state.currentTime);
+      }
       if (!state.seeking) {
         this.setControlTimeout();
         state.paused = state.originallyPaused;
@@ -378,6 +391,9 @@ export default class VideoPlayer extends Component {
   _toggleReload() {
     let state = this.state;
     state.currentTime = '0.00';
+    if (typeof this.props.currentTime === 'function') {
+      this.props.currentTime?.('0.00');
+    }
     this.setState(state);
   }
   _toggleTimer() {
@@ -402,6 +418,10 @@ export default class VideoPlayer extends Component {
       }
       if (time <= 10 && !this.state.loading) {
         this.props.handleTenSecondsLeftCallback();
+      }
+      let state = this.state;
+      if (typeof this.props.currentTime === 'function') {
+        this.props.currentTime?.(state.currentTime);
       }
       return `${this.formatTime(time)}`;
     }
@@ -458,6 +478,9 @@ export default class VideoPlayer extends Component {
   seekTo(time = 0) {
     let state = this.state;
     state.currentTime = time;
+    if (typeof this.props.currentTime === 'function') {
+      this.props.currentTime?.(time);
+    }
     this.player.ref.seek(time);
     this.setState(state);
   }
@@ -754,6 +777,18 @@ export default class VideoPlayer extends Component {
             marginBottom: this.animations.bottomControl.marginBottom,
           },
         ]}>
+        {this.props.subtitleEnable && (
+          <Subtitles
+            {...{currentTime: this.state.currentTime}}
+            selectedsubtitle={{
+              file:
+                this.props.subtitleEnableFile ??
+                'https://bitdash-a.akamaihd.net/content/sintel/subtitles/subtitles_en.vtt',
+            }}
+            containerStyle={this.props.subtitleStyle}
+            textStyle={this.props.subtitleTextStyle}
+          />
+        )}
         <ImageBackground
           source={IMAGES.bottomVignette}
           style={[styles.controls.column]}

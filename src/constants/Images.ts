@@ -20,4 +20,6 @@ export const IMAGES = {
   shrinkIcon: require('../assets/images/playerImage/shrink.png'),
   topVignette: require('../assets/images/playerImage/top-vignette.png'),
   volume: require('../assets/images/playerImage/volume.png'),
+  SubtitleIcon: require('../assets/images/SubtitleIcon/SubtitleIcon.png'),
+  SubtitleDisableIcon: require('../assets/images/SubtitleDisableIcon/SubtitleDisableIcon.png'),
 };

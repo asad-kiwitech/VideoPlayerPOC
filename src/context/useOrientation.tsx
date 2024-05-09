@@ -2,7 +2,7 @@ import React, {createContext, useContext, useEffect, useState} from 'react';
 import {Dimensions, ScaledSize} from 'react-native';
 import Orientation from 'react-native-orientation-locker';
 
-type OrientationType = 'PORTRAIT' | 'LANDSCAPE';
+export type OrientationType = 'PORTRAIT' | 'LANDSCAPE';
 
 interface OrientationContextType {
   inPortrait: OrientationType;

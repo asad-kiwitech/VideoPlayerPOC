@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useRef, useCallback} from 'react';
+import React from 'react';
 import {
   View,
   Button,
@@ -32,39 +32,49 @@ import {useOrientationContext} from '../../context/useOrientation';
 import AppModal from '../../components/appModal';
 import VideoDescription from '../../components/videoDescription';
 import {ListView} from '../../components/listView';
+import {fontPixel, heightPixel} from '../../utils/responsive';
+import {
+  extractAvailableResolutions,
+  getLocalVideoPath,
+} from '../../utils/commonFunction';
 
 const Home = ({route}: any) => {
   const {movie} = route.params;
   const navigation = useNavigation();
   const {inPortrait, lockToPortrait, lockToLandscape} = useOrientationContext();
-  const localVideoPath = RNFetchBlob.fs.dirs.DocumentDir + `/${movie?.id}.mp4`;
-  const videoPlayerRef = useRef<VideoPlayer>(null);
-  const [resolutions, setResolutions] = useState<any>([
+  const localVideoPath = getLocalVideoPath(movie?.id);
+  const videoPlayerRef = React.useRef<VideoPlayer>(null);
+  const [resolutions, setResolutions] = React.useState<any>([
     {label: 'Auto', resolutionValue: {type: 'auto'}, image: IMAGES.quality},
   ]);
-  const [speedTrack, setSpeedTrack] = useState<{
+  const [subtitleEnable, setSubtitleEnable] = React.useState(false);
+  const [speedTrack, setSpeedTrack] = React.useState<{
     id: number;
     speed: number;
     name: string;
   }>(preDefinedSpeedTrack[1]);
-  const [savedPlaybackPosition, setSavedPlaybackPosition] = useState<number>(0);
-  const [currentResolution, setCurrentResolution] = useState({
+  const [savedPlaybackPosition, setSavedPlaybackPosition] =
+    React.useState<number>(0);
+  const [currentResolution, setCurrentResolution] = React.useState({
     label: 'Auto',
     resolutionValue: {type: 'resolution', value: 720},
     image: IMAGES.quality,
   });
   const {isConnected} = useNetwork();
-  const [settingVisible, setSettingVisible] = useState<boolean>(false);
-  const [playBackVisible, setPlayBackVisible] = useState<boolean>(false);
-  const [playBackChange, setPlaybackChange] = useState<boolean>(false);
-  const [resolutionVisible, setResolutionVisible] = useState<boolean>(false);
-  const [showDescription, setShowDescription] = useState<boolean>(true);
-  const [videoResizeMode, setVideoResizeMode] = useState<string>('contain');
-  const [isDownloading, setIsDownloading] = useState<boolean>(false);
-  const [videoExists, setVideoExists] = useState<boolean>(false);
-  const [isDownloaded, setIsDownloaded] = useState<boolean>(false);
-  const [showContinueDialog, setShowContinueDialog] = useState<boolean>(false);
-  useEffect(() => {
+  const [settingVisible, setSettingVisible] = React.useState<boolean>(false);
+  const [playBackVisible, setPlayBackVisible] = React.useState<boolean>(false);
+  const [playBackChange, setPlaybackChange] = React.useState<boolean>(false);
+  const [resolutionVisible, setResolutionVisible] =
+    React.useState<boolean>(false);
+  const [showDescription, setShowDescription] = React.useState<boolean>(true);
+  const [videoResizeMode, setVideoResizeMode] =
+    React.useState<string>('contain');
+  const [isDownloading, setIsDownloading] = React.useState<boolean>(false);
+  const [videoExists, setVideoExists] = React.useState<boolean>(false);
+  const [isDownloaded, setIsDownloaded] = React.useState<boolean>(false);
+  const [showContinueDialog, setShowContinueDialog] =
+    React.useState<boolean>(false);
+  React.useEffect(() => {
     if (!isConnected) {
       Alert.alert(
         'No Internet Connection',
@@ -72,7 +82,7 @@ const Home = ({route}: any) => {
       );
     }
   }, [isConnected]);
-  useEffect(() => {
+  React.useEffect(() => {
     const backHandler = BackHandler.addEventListener(
       'hardwareBackPress',
       () => {
@@ -91,20 +101,36 @@ const Home = ({route}: any) => {
     return () => backHandler.remove();
   }, [inPortrait]);
 
-  useEffect(() => {
-    const checkFile = async () => {
-      const exists = await RNFetchBlob.fs.exists(localVideoPath);
-      if (exists) {
-        setVideoExists(true);
-        setIsDownloaded(true);
-      }
-    };
+  React.useEffect(() => {
     checkFile();
     getAvailableResolutions(movie?.uri);
     videoPlayerRef.current?.player?.ref?.seek(savedPlaybackPosition);
   }, [movie?.uri, savedPlaybackPosition]);
 
-  const downloadVideo = async () => {
+  React.useEffect(() => {
+    checkSavedPlaybackDurationSet();
+  }, [movie.id]);
+
+  React.useEffect(() => {
+    const intervalId = setInterval(() => {
+      savePlaybackDuration();
+    }, 10000);
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [savedPlaybackPosition]);
+
+  React.useEffect(() => {
+    checkSavedPlaybackDuration();
+  }, [movie.id]);
+  const checkFile = React.useCallback(async () => {
+    const exists = await RNFetchBlob.fs.exists(localVideoPath);
+    if (exists) {
+      setVideoExists(true);
+      setIsDownloaded(true);
+    }
+  }, [localVideoPath]);
+  const downloadVideo = React.useCallback(async () => {
     try {
       setIsDownloading(true);
       const outputFile = localVideoPath;
@@ -120,70 +146,48 @@ const Home = ({route}: any) => {
       console.error('Error downloading video:', error);
       setIsDownloading(false);
     }
-  };
+  }, [localVideoPath, movie?.uri]);
 
-  const getAvailableResolutions = async (url: string) => {
-    try {
-      const response = await fetch(url);
-      const playlistContent = await response.text();
-      const filenameMatch = url.match(/([^/]+\.m3u8)$/);
-      const filename = filenameMatch ? filenameMatch[1] : '';
-      const filenameWithoutExtension = filename.replace('.m3u8', '');
-      const lines = playlistContent.split('\n');
-      const resolutionLines = lines.filter(line => line.includes('RESOLUTION'));
-
-      // Extract heights and URLs from resolution lines
-      const availableResolutions = resolutionLines
-        .reverse()
-        .map(line => {
-          const match = line.match(/RESOLUTION=(\d+)x(\d+)/);
-          const height = match ? parseInt(match[2], 10) : null;
-          return height
-            ? {
-                label: `${height}p`,
-                resolutionValue: {type: 'resolution', value: height},
-                image: IMAGES.quality,
-                url: url.replace(
-                  filename,
-                  `${filenameWithoutExtension}_${height}.m3u8`,
-                ),
-              }
-            : null;
-        })
-        .filter(resolution => resolution !== null);
-      setResolutions([...availableResolutions, ...resolutions]);
-      console.log(availableResolutions, 'here here');
-    } catch (error) {
-      console.error('Error fetching HLS playlist:', error);
-      return [];
-    }
-  };
-
-  useEffect(() => {
-    const checkSavedPlaybackDuration = async () => {
+  const getAvailableResolutions = React.useCallback(
+    async (url: string) => {
       try {
-        const key = `playbackDuration_${movie.id}`;
-        const savedDuration = await AsyncStorage.getItem(key);
-        if (savedDuration) {
-          const savedPosition = parseFloat(savedDuration);
-          setSavedPlaybackPosition(savedPosition);
-          videoPlayerRef.current?.player?.ref?.seek(savedPosition);
-        }
+        const response = await fetch(url);
+        const playlistContent = await response.text();
+        const filenameMatch = /([^/]+\.m3u8)$/.exec(url);
+        const filename = filenameMatch ? filenameMatch[1] : '';
+        const filenameWithoutExtension = filename.replace('.m3u8', '');
+        const lines = playlistContent.split('\n');
+        const resolutionLines = lines.filter(line =>
+          line.includes('RESOLUTION'),
+        );
+        const availableResolutions = extractAvailableResolutions(
+          resolutionLines,
+          url,
+          filename,
+          filenameWithoutExtension,
+        );
+        setResolutions([...availableResolutions, ...resolutions]);
       } catch (error) {
-        console.error('Error checking saved playback duration:', error);
+        return [];
       }
-    };
-    checkSavedPlaybackDuration();
+    },
+    [resolutions],
+  );
+
+  const checkSavedPlaybackDurationSet = React.useCallback(async () => {
+    try {
+      const key = `playbackDuration_${movie.id}`;
+      const savedDuration = await AsyncStorage.getItem(key);
+      if (savedDuration) {
+        const savedPosition = parseFloat(savedDuration);
+        setSavedPlaybackPosition(savedPosition);
+        videoPlayerRef.current?.player?.ref?.seek(savedPosition);
+      }
+    } catch (error) {
+      return error;
+    }
   }, [movie.id]);
 
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      savePlaybackDuration();
-    }, 10000);
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [savedPlaybackPosition]);
   const savePlaybackDuration = React.useCallback(async () => {
     if (videoPlayerRef.current) {
       const currentPosition = videoPlayerRef.current.state?.currentTime || 0;
@@ -218,52 +222,51 @@ const Home = ({route}: any) => {
     }
   }, [videoPlayerRef, cleanId]);
 
-  const forwardVideo = () => {
+  const forwardVideo = React.useCallback(() => {
     if (videoPlayerRef.current) {
       videoPlayerRef.current?.player?.ref?.seek(
         videoPlayerRef.current.state?.currentTime + 10,
       );
       savePlaybackDuration();
     }
-  };
+  }, [savePlaybackDuration]);
 
-  const reverseVideo = () => {
+  const reverseVideo = React.useCallback(() => {
     if (videoPlayerRef.current) {
       videoPlayerRef.current?.player?.ref?.seek(
         Math.max(0, videoPlayerRef.current.state?.currentTime - 10),
       );
       savePlaybackDuration();
     }
-  };
-
-  useEffect(() => {
-    const checkSavedPlaybackDuration = async () => {
-      try {
-        const key = `playbackDuration_${movie.id}`;
-        const savedDuration = await AsyncStorage.getItem(key);
-        if (savedDuration) {
-          videoPlayerRef.current?.methods?.togglePlayPause();
-          setShowContinueDialog(true);
-          handleContinueOption(true);
-        }
-      } catch (error) {
-        console.error('Error checking saved playback duration:', error);
+  }, [savePlaybackDuration]);
+  const checkSavedPlaybackDuration = React.useCallback(async () => {
+    try {
+      const key = `playbackDuration_${movie.id}`;
+      const savedDuration = await AsyncStorage.getItem(key);
+      if (savedDuration) {
+        videoPlayerRef.current?.methods?.togglePlayPause();
+        setShowContinueDialog(true);
+        handleContinueOption(true);
       }
-    };
-    checkSavedPlaybackDuration();
+    } catch (error) {
+      console.error('Error checking saved playback duration:', error);
+    }
   }, [movie.id]);
 
-  const handleContinueOption = (continuePlayback: boolean) => {
-    if (continuePlayback) {
-      videoPlayerRef.current?.player?.ref?.seek(savedPlaybackPosition);
-    } else {
-      cleanId();
-      setSavedPlaybackPosition(0);
-      videoPlayerRef.current?.player?.ref?.seek(0);
-    }
-    setShowContinueDialog(false);
-  };
-  const handleExist = useCallback(() => {
+  const handleContinueOption = React.useCallback(
+    (continuePlayback: boolean) => {
+      if (continuePlayback) {
+        videoPlayerRef.current?.player?.ref?.seek(savedPlaybackPosition);
+      } else {
+        cleanId();
+        setSavedPlaybackPosition(0);
+        videoPlayerRef.current?.player?.ref?.seek(0);
+      }
+      setShowContinueDialog(false);
+    },
+    [cleanId, savedPlaybackPosition],
+  );
+  const handleExist = React.useCallback(() => {
     Alert.alert('Delete video', 'Are you sure you want to delete the video?', [
       {
         text: 'Yes',
@@ -308,6 +311,10 @@ const Home = ({route}: any) => {
     <AppBgImage>
       <StatusBar hidden={!showDescription} />
       <VideoPlayer
+        subtitleTextStyle={{
+          fontSize: fontPixel(Value.CONSTANT_VALUE_15),
+          padding: heightPixel(Value.CONSTANT_VALUE_5),
+        }}
         key={currentResolution.label && speedTrack?.speed}
         ref={videoPlayerRef}
         source={{
@@ -377,10 +384,27 @@ const Home = ({route}: any) => {
           });
         }}
         custom={true}
+        selectedTextTrack={{type: 'language', value: 'en'}}
         selectedVideoTrack={currentResolution.resolutionValue}
+        subtitleEnable={subtitleEnable}
         renderResolution={() => (
           <>
             <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => {
+                setSubtitleEnable(!subtitleEnable);
+              }}>
+              <Image
+                style={styles.settingIcon}
+                source={
+                  subtitleEnable
+                    ? IMAGES.SubtitleIcon
+                    : IMAGES.SubtitleDisableIcon
+                }
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.7}
               onPress={() => {
                 setSettingVisible(true);
               }}>

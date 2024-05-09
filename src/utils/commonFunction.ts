@@ -1,7 +1,7 @@
-import FlashMessage, {showMessage} from 'react-native-flash-message';
-import {CommonColors, Value} from '../constants';
+import {showMessage} from 'react-native-flash-message';
+import {CommonColors, IMAGES, Value} from '../constants';
 import {heightPixel} from './responsive';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import RNFetchBlob from 'react-native-blob-util';
 
 export const removeAndroidAppPath = (originalPath: string) => {
   const androidAppPath = '/Android/data/com.videoplayermx/files';
@@ -35,4 +35,60 @@ export const ToastHandler = (
     duration: Value.CONSTANT_VALUE_3000,
     type: isSuccess ? 'success' : 'danger',
   });
+};
+export const getLocalVideoPath = (movieId: number): string => {
+  return `${RNFetchBlob.fs.dirs.DocumentDir}/${movieId}.mp4`;
+};
+export const checkFileExists = async (filePath: string): Promise<boolean> => {
+  try {
+    const exists = await RNFetchBlob.fs.exists(filePath);
+    return exists;
+  } catch (error) {
+    console.error('Error checking file existence:', error);
+    return false;
+  }
+};
+type SuccessCallback = () => void;
+type ErrorCallback = (error: Error) => void;
+export const deleteFile = (
+  filePath: string,
+  onSuccess: SuccessCallback,
+  onError: ErrorCallback,
+): void => {
+  RNFetchBlob.fs
+    .unlink(filePath)
+    .then(() => {
+      onSuccess();
+    })
+    .catch(error => {
+      console.error('Error deleting file:', error);
+      onError(error);
+    });
+};
+
+export const extractAvailableResolutions = (
+  resolutionLines: string[],
+  url: string,
+  filename: string,
+  filenameWithoutExtension: string,
+) => {
+  const reversedLines = resolutionLines.slice().reverse(); // Make a copy and reverse it
+  const availableResolutions = reversedLines
+    .map(line => {
+      const match = /RESOLUTION=(\d+)x(\d+)/.exec(line);
+      const height = match ? parseInt(match[2], 10) : null;
+      return height
+        ? {
+            label: `${height}p`,
+            resolutionValue: {type: 'resolution', value: height},
+            image: IMAGES.quality,
+            url: url.replace(
+              filename,
+              `${filenameWithoutExtension}_${height}.m3u8`,
+            ),
+          }
+        : null;
+    })
+    .filter(resolution => resolution !== null);
+  return availableResolutions;
 };
