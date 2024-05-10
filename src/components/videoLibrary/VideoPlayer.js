@@ -380,12 +380,6 @@ export default class VideoPlayer extends Component {
   _togglePause() {
     let state = this.state;
     state.paused = true;
-    if (state.paused) {
-      typeof this.events.onPause === 'function' && this.events.onPause();
-    } else {
-      typeof this.events.onPlay === 'function' && this.events.onPlay();
-    }
-
     this.setState(state);
   }
   _toggleReload() {

@@ -2,6 +2,7 @@ import {showMessage} from 'react-native-flash-message';
 import {CommonColors, IMAGES, Value} from '../constants';
 import {heightPixel} from './responsive';
 import RNFetchBlob from 'react-native-blob-util';
+import {FFmpegKit, ReturnCode} from 'ffmpeg-kit-react-native';
 
 export const removeAndroidAppPath = (originalPath: string) => {
   const androidAppPath = '/Android/data/com.videoplayermx/files';
@@ -91,4 +92,23 @@ export const extractAvailableResolutions = (
     })
     .filter(resolution => resolution !== null);
   return availableResolutions;
+};
+export const executeFFmpegCommand = async (
+  command: string,
+  onSuccess: () => void,
+  onFailure: () => void,
+): Promise<void> => {
+  try {
+    await FFmpegKit.execute(command).then(async session => {
+      const returnCode = await session.getReturnCode();
+      if (ReturnCode.isSuccess(returnCode)) {
+        onSuccess();
+      } else {
+        onFailure();
+      }
+    });
+  } catch (error) {
+    console.error('Error executing FFmpeg command:', error);
+    onFailure();
+  }
 };
